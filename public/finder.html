@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Found an Item - Smart ID Tag</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <nav>
+    <div class="nav-container">
+      <a href="/" class="logo">
+        <span>🏷️</span>
+        Smart ID Tag
+      </a>
+      <div class="nav-links">
+        <a href="/">Home</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div style="max-width: 700px; margin: 40px auto;">
+      
+      <div id="searchSection">
+        <div style="text-align: center; margin-bottom: 40px;">
+          <h1 style="color: var(--primary-color); margin-bottom: 10px;">🎉 Great Job Finding This Item!</h1>
+          <p style="font-size: 1.1rem; color: var(--text-light);">
+            Let's help return it to its owner
+          </p>
+        </div>
+
+        <div class="card">
+          <div id="alertBox"></div>
+
+          <form id="findForm">
+            <div class="form-group">
+              <label for="itemCode">Enter the Item Code</label>
+              <input 
+                type="text" 
+                id="itemCode" 
+                placeholder="e.g., ITEM-A9K32"
+                style="text-transform: uppercase; font-family: monospace; font-size: 1.2rem;"
+                pattern="ITEM-[A-Z0-9]{5}"
+                required
+              >
+              <small style="color: var(--text-light);">
+                The code should be in format: ITEM-XXXXX
+              </small>
+            </div>
+
+            <button type="submit" class="btn btn-block" id="searchBtn">
+              🔍 Find Item
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div id="messageSection" class="hidden">
+        <div class="card">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h2 style="color: var(--primary-color);">✅ Item Found!</h2>
+            <div style="background: var(--bg-light); padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="font-size: 0.9rem; color: var(--text-light); margin-bottom: 5px;">Item Name:</p>
+              <h3 id="foundItemName" style="margin: 0;"></h3>
+            </div>
+            <p id="foundItemDesc" style="color: var(--text-light);"></p>
+          </div>
+
+          <div id="alertBox2"></div>
+
+          <form id="messageForm">
+            <div class="form-group">
+              <label for="message">Send a Message to the Owner</label>
+              <textarea 
+                id="message" 
+                placeholder="Hi! I found your item. Please let me know how we can arrange for its return."
+                rows="5"
+                maxlength="1000"
+                required
+              ></textarea>
+              <small style="color: var(--text-light);">
+                Your contact information will remain private. Maximum 1000 characters.
+              </small>
+            </div>
+
+            <div class="form-group">
+              <label for="finderEmail">Your Email (Optional)</label>
+              <input 
+                type="email" 
+                id="finderEmail" 
+                placeholder="Your email if you want to receive replies"
+              >
+              <small style="color: var(--text-light);">
+                Providing your email helps the owner reply faster, but it's optional
+              </small>
+            </div>
+
+            <button type="submit" class="btn btn-block" id="sendBtn">
+              📧 Send Message to Owner
+            </button>
+          </form>
+
+          <div style="background: #e3f2fd; padding: 15px; border-radius: 5px; margin-top: 20px;">
+            <p style="margin: 0; font-size: 0.9rem; color: #0c5460;">
+              <strong>Privacy Note:</strong> The owner will receive your message via email, 
+              but your contact information will not be shared unless you choose to include it in your message.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div id="successSection" class="hidden">
+        <div class="card" style="text-align: center; padding: 40px;">
+          <div style="font-size: 4rem; margin-bottom: 20px;">✅</div>
+          <h2 style="color: var(--primary-color); margin-bottom: 15px;">Message Sent!</h2>
+          <p style="color: var(--text-light); margin-bottom: 30px;">
+            The owner has been notified via email and will respond soon. 
+            Thank you for being honest and helping return this item!
+          </p>
+          <a href="/" class="btn">Return to Home</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const searchSection = document.getElementById('searchSection');
+    const messageSection = document.getElementById('messageSection');
+    const successSection = document.getElementById('successSection');
+    
+    let currentItemId = null;
+
+    function showAlert(message, type = 'error', boxId = 'alertBox') {
+      const alertBox = document.getElementById(boxId);
+      alertBox.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+      setTimeout(() => {
+        alertBox.innerHTML = '';
+      }, 5000);
+    }
+
+    // Check if code is in URL
+    const pathParts = window.location.pathname.split('/');
+    if (pathParts.length >= 3 && pathParts[1] === 'find') {
+      const code = pathParts[2].toUpperCase();
+      document.getElementById('itemCode').value = code;
+      document.getElementById('findForm').dispatchEvent(new Event('submit'));
+    }
+
+    document.getElementById('findForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const code = document.getElementById('itemCode').value.trim().toUpperCase();
+      const searchBtn = document.getElementById('searchBtn');
+
+      searchBtn.disabled = true;
+      searchBtn.textContent = 'Searching...';
+
+      try {
+        const response = await fetch(`/api/find/${code}`);
+        const data = await response.json();
+
+        if (response.ok && data.found) {
+          // Show message form
+          currentItemId = data.item.id;
+          document.getElementById('foundItemName').textContent = data.item.itemName;
+          document.getElementById('foundItemDesc').textContent = data.item.description || '';
+          
+          searchSection.classList.add('hidden');
+          messageSection.classList.remove('hidden');
+        } else {
+          showAlert(data.error || 'Item not found. Please check the code and try again.');
+          searchBtn.disabled = false;
+          searchBtn.textContent = '🔍 Find Item';
+        }
+      } catch (error) {
+        showAlert('Network error. Please try again.');
+        searchBtn.disabled = false;
+        searchBtn.textContent = '🔍 Find Item';
+      }
+    });
+
+    document.getElementById('messageForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const message = document.getElementById('message').value.trim();
+      const finderEmail = document.getElementById('finderEmail').value.trim();
+      const sendBtn = document.getElementById('sendBtn');
+
+      if (!message) {
+        showAlert('Please enter a message', 'error', 'alertBox2');
+        return;
+      }
+
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Sending...';
+
+      try {
+        const response = await fetch('/api/send-message', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            itemId: currentItemId, 
+            message,
+            finderEmail 
+          })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          messageSection.classList.add('hidden');
+          successSection.classList.remove('hidden');
+        } else {
+          showAlert(data.error || 'Failed to send message', 'error', 'alertBox2');
+          sendBtn.disabled = false;
+          sendBtn.textContent = '📧 Send Message to Owner';
+        }
+      } catch (error) {
+        showAlert('Network error. Please try again.', 'error', 'alertBox2');
+        sendBtn.disabled = false;
+        sendBtn.textContent = '📧 Send Message to Owner';
+      }
+    });
+  </script>
+</body>
+</html>

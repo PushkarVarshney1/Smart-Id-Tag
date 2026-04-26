@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Smart ID Tag</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <nav>
+    <div class="nav-container">
+      <a href="/" class="logo">
+        <span>🏷️</span>
+        Smart ID Tag
+      </a>
+      <div class="nav-links">
+        <a href="/register">Register</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="form-container">
+      <h2>Login to Your Account</h2>
+      
+      <div id="alertBox"></div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="email">Email Address</label>
+          <input type="email" id="email" name="email" required>
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required>
+        </div>
+
+        <button type="submit" class="btn btn-block" id="submitBtn">
+          Login
+        </button>
+      </form>
+
+      <p style="text-align: center; margin-top: 20px; color: var(--text-light);">
+        Don't have an account? <a href="/register" style="color: var(--primary-color);">Register here</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    // Check if already logged in
+    async function checkIfLoggedIn() {
+      try {
+        const response = await fetch('/api/check-auth');
+        const data = await response.json();
+        
+        if (data.authenticated) {
+          // Already logged in, redirect to dashboard
+          window.location.href = '/dashboard';
+        }
+      } catch (error) {
+        // Not logged in, stay on login page
+      }
+    }
+
+    checkIfLoggedIn();
+
+    const form = document.getElementById('loginForm');
+    const alertBox = document.getElementById('alertBox');
+    const submitBtn = document.getElementById('submitBtn');
+
+    function showAlert(message, type = 'error') {
+      alertBox.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+      setTimeout(() => {
+        alertBox.innerHTML = '';
+      }, 5000);
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Logging in...';
+
+      try {
+        const response = await fetch('/api/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          showAlert('Login successful! Redirecting...', 'success');
+          setTimeout(() => {
+            window.location.href = '/dashboard';
+          }, 1000);
+        } else {
+          showAlert(data.error || 'Login failed');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Login';
+        }
+      } catch (error) {
+        showAlert('Network error. Please try again.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Login';
+      }
+    });
+  </script>
+</body>
+</html>

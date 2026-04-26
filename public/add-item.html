@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add Item - Smart ID Tag</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <nav>
+    <div class="nav-container">
+      <a href="/" class="logo">
+        <span>🏷️</span>
+        Smart ID Tag
+      </a>
+      <div class="nav-links">
+        <a href="/dashboard">Dashboard</a>
+        <button class="btn-logout" id="logoutBtn">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="form-container">
+      <h2>Add New Item</h2>
+      
+      <div id="alertBox"></div>
+
+      <form id="addItemForm">
+        <div class="form-group">
+          <label for="itemName">Item Name *</label>
+          <input 
+            type="text" 
+            id="itemName" 
+            name="itemName" 
+            placeholder="e.g., Laptop, Wallet, Keys"
+            required
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="description">Description</label>
+          <textarea 
+            id="description" 
+            name="description" 
+            placeholder="Add details to help identify your item (optional)"
+            rows="4"
+          ></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-block" id="submitBtn">
+          Generate Code & Create Item
+        </button>
+      </form>
+
+      <div id="successBox" class="hidden">
+        <div style="text-align: center; padding: 30px; background: var(--bg-light); border-radius: 10px; margin-top: 30px;">
+          <h3 style="color: var(--primary-color); margin-bottom: 20px;">✅ Item Created Successfully!</h3>
+          
+          <div class="code-display">
+            <p style="margin-bottom: 10px; color: var(--text-light);">Your Unique Code:</p>
+            <div class="code-text" id="generatedCode"></div>
+          </div>
+
+          <div class="qr-container">
+            <p style="margin-bottom: 15px; color: var(--text-light);">QR Code:</p>
+            <img id="qrImage" class="qr-code" alt="QR Code">
+            <p style="margin-top: 15px; color: var(--text-light); font-size: 0.9rem;">
+              Right-click to save or print this QR code
+            </p>
+          </div>
+
+          <div style="display: flex; gap: 10px; justify-content: center; margin-top: 30px; flex-wrap: wrap;">
+            <button onclick="downloadQR()" class="btn btn-secondary">Download QR Code</button>
+            <a href="/dashboard" class="btn">Go to Dashboard</a>
+            <button onclick="addAnother()" class="btn" style="background: var(--warning-color);">Add Another Item</button>
+          </div>
+        </div>
+      </div>
+
+      <p style="text-align: center; margin-top: 20px; color: var(--text-light);">
+        <a href="/dashboard" style="color: var(--primary-color);">← Back to Dashboard</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('addItemForm');
+    const alertBox = document.getElementById('alertBox');
+    const submitBtn = document.getElementById('submitBtn');
+    const successBox = document.getElementById('successBox');
+
+    function showAlert(message, type = 'error') {
+      alertBox.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+      setTimeout(() => {
+        alertBox.innerHTML = '';
+      }, 5000);
+    }
+
+    async function checkAuth() {
+      try {
+        const response = await fetch('/api/check-auth');
+        const data = await response.json();
+        if (!data.authenticated) {
+          window.location.href = '/login';
+        }
+      } catch (error) {
+        window.location.href = '/login';
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const itemName = document.getElementById('itemName').value.trim();
+      const description = document.getElementById('description').value.trim();
+
+      if (!itemName) {
+        showAlert('Item name is required');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Creating Item...';
+
+      try {
+        const response = await fetch('/api/add-item', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ itemName, description })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          // Hide form and show success
+          form.style.display = 'none';
+          successBox.classList.remove('hidden');
+
+          // Display code and QR
+          document.getElementById('generatedCode').textContent = data.item.uniqueCode;
+          document.getElementById('qrImage').src = data.item.qrCode;
+
+        } else {
+          showAlert(data.error || 'Failed to create item');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Generate Code & Create Item';
+        }
+      } catch (error) {
+        showAlert('Network error. Please try again.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Generate Code & Create Item';
+      }
+    });
+
+    function downloadQR() {
+      const qrImage = document.getElementById('qrImage');
+      const code = document.getElementById('generatedCode').textContent;
+      
+      const link = document.createElement('a');
+      link.href = qrImage.src;
+      link.download = `smart-id-tag-${code}.png`;
+      link.click();
+    }
+
+    function addAnother() {
+      form.style.display = 'block';
+      successBox.classList.add('hidden');
+      form.reset();
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Generate Code & Create Item';
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try {
+        await fetch('/api/logout', { method: 'POST' });
+        window.location.href = '/';
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    });
+
+    // Check authentication on page load
+    checkAuth();
+  </script>
+</body>
+</html>

@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Item Details - Smart ID Tag</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <nav>
+    <div class="nav-container">
+      <a href="/" class="logo">
+        <span>🏷️</span>
+        Smart ID Tag
+      </a>
+      <div class="nav-links">
+        <a href="/dashboard">Dashboard</a>
+        <button class="btn-logout" id="logoutBtn">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div style="max-width: 800px; margin: 0 auto;">
+      
+      <div style="margin-bottom: 30px;">
+        <a href="/dashboard" style="color: var(--primary-color); text-decoration: none;">
+          ← Back to Dashboard
+        </a>
+      </div>
+
+      <div id="loadingBox">
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Loading item details...</p>
+        </div>
+      </div>
+
+      <div id="contentBox" class="hidden">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 id="itemName" class="card-title"></h2>
+              <span id="itemStatus" class="status-badge"></span>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <p id="itemDescription" style="margin-bottom: 20px;"></p>
+            
+            <div style="background: var(--bg-light); padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+              <p style="margin: 0; color: var(--text-light); font-size: 0.9rem;">
+                <strong>Created:</strong> <span id="createdDate"></span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom: 20px;">Your Unique Item Code</h3>
+          
+          <div class="code-display">
+            <p style="margin-bottom: 10px; color: var(--text-light);">Share this code or QR:</p>
+            <div class="code-text" id="itemCode"></div>
+          </div>
+
+          <div class="qr-container">
+            <img id="qrImage" class="qr-code" alt="QR Code">
+            <p style="margin-top: 15px; color: var(--text-light); font-size: 0.9rem;">
+              Scan this QR code or visit: <strong id="itemUrl"></strong>
+            </p>
+          </div>
+
+          <div style="text-align: center; margin-top: 30px;">
+            <button onclick="downloadQR()" class="btn btn-secondary">
+              📥 Download QR Code
+            </button>
+            <button onclick="printQR()" class="btn">
+              🖨️ Print QR Code
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom: 20px;">How to Use Your Tag</h3>
+          <ol style="line-height: 2; color: var(--text-dark);">
+            <li><strong>Print the QR code</strong> or write down the code on a label/sticker</li>
+            <li><strong>Attach it</strong> to your item in a visible location</li>
+            <li><strong>If lost:</strong> The finder can scan the QR or enter the code at our website</li>
+            <li><strong>You'll receive</strong> an email notification when someone finds your item</li>
+            <li><strong>Chat anonymously</strong> to arrange the return</li>
+          </ol>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom: 20px;">Item Actions</h3>
+          
+          <div style="display: flex; flex-direction: column; gap: 15px;">
+            <a href="/chat/${window.location.pathname.split('/').pop()}" class="btn btn-secondary">
+              💬 View Messages
+            </a>
+            
+            <button id="markReturnedBtn" class="btn" style="background: var(--warning-color);">
+              ✅ Mark as Returned
+            </button>
+
+            <button id="deleteBtn" class="btn btn-danger">
+              🗑️ Delete Item
+            </button>
+          </div>
+
+          <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin-top: 20px; border-left: 4px solid var(--warning-color);">
+            <p style="margin: 0; font-size: 0.9rem; color: #856404;">
+              <strong>⚠️ Note:</strong> Marking as returned or deleting will deactivate the code. 
+              Finders will no longer be able to contact you using this code.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    let currentItem = null;
+
+    async function checkAuth() {
+      try {
+        const response = await fetch('/api/check-auth');
+        const data = await response.json();
+        if (!data.authenticated) {
+          window.location.href = '/login';
+        }
+      } catch (error) {
+        window.location.href = '/login';
+      }
+    }
+
+    async function loadItem() {
+      const pathParts = window.location.pathname.split('/');
+      const itemId = pathParts[pathParts.length - 1];
+
+      try {
+        const response = await fetch(`/api/item/${itemId}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          alert(data.error || 'Failed to load item');
+          window.location.href = '/dashboard';
+          return;
+        }
+
+        currentItem = data.item;
+
+        // Update page content
+        document.getElementById('itemName').textContent = currentItem.itemName;
+        document.getElementById('itemDescription').textContent = currentItem.description || 'No description provided';
+        document.getElementById('itemCode').textContent = currentItem.uniqueCode;
+        document.getElementById('itemStatus').textContent = currentItem.status.toUpperCase();
+        document.getElementById('itemStatus').className = `status-badge status-${currentItem.status}`;
+        document.getElementById('createdDate').textContent = new Date(currentItem.createdAt).toLocaleDateString();
+        document.getElementById('qrImage').src = currentItem.qrCode;
+        document.getElementById('itemUrl').textContent = `${window.location.origin}/find/${currentItem.uniqueCode}`;
+
+        // Show/hide mark returned button
+        if (currentItem.status !== 'active') {
+          document.getElementById('markReturnedBtn').style.display = 'none';
+        }
+
+        // Show content
+        document.getElementById('loadingBox').classList.add('hidden');
+        document.getElementById('contentBox').classList.remove('hidden');
+
+      } catch (error) {
+        alert('Failed to load item details');
+        window.location.href = '/dashboard';
+      }
+    }
+
+    function downloadQR() {
+      const qrImage = document.getElementById('qrImage');
+      const link = document.createElement('a');
+      link.href = qrImage.src;
+      link.download = `smart-id-tag-${currentItem.uniqueCode}.png`;
+      link.click();
+    }
+
+    function printQR() {
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Print QR Code - ${currentItem.uniqueCode}</title>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                text-align: center;
+                padding: 20px;
+              }
+              .code {
+                font-size: 24px;
+                font-weight: bold;
+                margin: 20px 0;
+                font-family: monospace;
+              }
+              img {
+                max-width: 300px;
+                border: 3px solid #4CAF50;
+                padding: 15px;
+              }
+              .instructions {
+                margin-top: 30px;
+                font-size: 14px;
+                color: #666;
+              }
+            </style>
+          </head>
+          <body>
+            <h2>${currentItem.itemName}</h2>
+            <div class="code">${currentItem.uniqueCode}</div>
+            <img src="${currentItem.qrCode}" alt="QR Code">
+            <div class="instructions">
+              <p>If found, scan this QR code or visit:</p>
+              <p><strong>${window.location.origin}/find/${currentItem.uniqueCode}</strong></p>
+            </div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
+
+    document.getElementById('markReturnedBtn').addEventListener('click', async () => {
+      if (!confirm('Mark this item as returned? This will deactivate the code.')) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/mark-returned/${currentItem.id}`, {
+          method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          alert('Item marked as returned!');
+          window.location.reload();
+        } else {
+          alert(data.error || 'Failed to update item');
+        }
+      } catch (error) {
+        alert('Network error');
+      }
+    });
+
+    document.getElementById('deleteBtn').addEventListener('click', async () => {
+      if (!confirm('Delete this item permanently? This action cannot be undone.')) {
+        return;
+      }
+
+      if (!confirm('Are you absolutely sure? All messages will also be deleted.')) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/item/${currentItem.id}`, {
+          method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          alert('Item deleted successfully');
+          window.location.href = '/dashboard';
+        } else {
+          alert(data.error || 'Failed to delete item');
+        }
+      } catch (error) {
+        alert('Network error');
+      }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try {
+        await fetch('/api/logout', { method: 'POST' });
+        window.location.href = '/';
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    });
+
+    // Initialize
+    (async () => {
+      await checkAuth();
+      loadItem();
+    })();
+  </script>
+</body>
+</html>

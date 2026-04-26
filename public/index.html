@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart ID Tag - Anonymous Lost Item Recovery</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <nav>
+    <div class="nav-container">
+      <a href="/" class="logo">
+        <span>🏷️</span>
+        Smart ID Tag
+      </a>
+      <div class="nav-links" id="navLinks">
+        <a href="/login">Login</a>
+        <a href="/register" class="btn btn-small">Get Started</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="hero">
+      <h1>Never Lose Your Items Again</h1>
+      <p>Secure, anonymous lost-and-found system that protects your privacy</p>
+      <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+        <a href="/register" class="btn">Register Now</a>
+        <a href="#how-it-works" class="btn btn-secondary">Learn More</a>
+      </div>
+    </div>
+
+    <section id="how-it-works">
+      <h2 style="text-align: center; margin-bottom: 40px;">How It Works</h2>
+      
+      <div class="features">
+        <div class="feature">
+          <div class="feature-icon">📝</div>
+          <h3>1. Register Items</h3>
+          <p>Add your valuable items and get a unique code for each one</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">🏷️</div>
+          <h3>2. Attach Tag</h3>
+          <p>Print the code or QR sticker and attach it to your item</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">🔍</div>
+          <h3>3. Someone Finds It</h3>
+          <p>Finder enters the code on our website</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">💬</div>
+          <h3>4. Anonymous Chat</h3>
+          <p>Connect with the finder without revealing personal info</p>
+        </div>
+      </div>
+    </section>
+
+    <section style="background: var(--bg-light); padding: 40px; border-radius: 10px; margin: 40px 0;">
+      <h2 style="text-align: center; margin-bottom: 30px;">Key Features</h2>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div style="padding: 20px;">
+          <h3>🔒 Privacy Protected</h3>
+          <p>Your email and phone number are never revealed to finders</p>
+        </div>
+
+        <div style="padding: 20px;">
+          <h3>📧 Instant Notifications</h3>
+          <p>Get email alerts when someone finds your item</p>
+        </div>
+
+        <div style="padding: 20px;">
+          <h3>💬 Two-Way Messaging</h3>
+          <p>Chat anonymously to arrange item return</p>
+        </div>
+
+        <div style="padding: 20px;">
+          <h3>📱 QR Code Support</h3>
+          <p>Generate QR codes for easy scanning</p>
+        </div>
+
+        <div style="padding: 20px;">
+          <h3>🆓 100% Free</h3>
+          <p>No hidden fees or subscription charges</p>
+        </div>
+
+        <div style="padding: 20px;">
+          <h3>🛡️ Spam Protection</h3>
+          <p>Built-in rate limiting and abuse reporting</p>
+        </div>
+      </div>
+    </section>
+
+    <section style="text-align: center; padding: 60px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; margin: 40px 0;">
+      <h2 style="margin-bottom: 20px;">Found a Lost Item?</h2>
+      <p style="font-size: 1.1rem; margin-bottom: 30px;">Enter the code to contact the owner</p>
+      
+      <div style="max-width: 500px; margin: 0 auto;">
+        <form id="finderForm" style="display: flex; gap: 10px;">
+          <input 
+            type="text" 
+            id="quickCode" 
+            placeholder="Enter code (e.g., ITEM-A9K32)"
+            style="flex: 1; padding: 15px; border: none; border-radius: 5px; font-size: 1rem;"
+            pattern="ITEM-[A-Z0-9]{5}"
+            required
+          >
+          <button type="submit" class="btn">Find Item</button>
+        </form>
+      </div>
+    </section>
+
+    <section style="text-align: center; margin: 60px 0;">
+      <h2 style="margin-bottom: 20px;">Ready to Protect Your Items?</h2>
+      <p style="color: var(--text-light); margin-bottom: 30px;">Join thousands of users protecting their valuables</p>
+      <a href="/register" class="btn" style="font-size: 1.1rem; padding: 15px 40px;">Create Free Account</a>
+    </section>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 Smart ID Tag. All rights reserved.</p>
+    <p style="margin-top: 10px; font-size: 0.9rem;">Protecting your items, preserving your privacy</p>
+  </footer>
+
+  <script>
+    // Check if user is already logged in
+    async function checkAuthStatus() {
+      try {
+        const response = await fetch('/api/check-auth');
+        const data = await response.json();
+        
+        if (data.authenticated) {
+          // Update navigation for logged-in users
+          const navLinks = document.getElementById('navLinks');
+          navLinks.innerHTML = `
+            <span style="color: white; margin-right: 10px;">Hello, ${data.user.name}</span>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/add-item" class="btn btn-small">Add Item</a>
+          `;
+        }
+      } catch (error) {
+        // User not logged in, keep default navigation
+        console.log('User not authenticated');
+      }
+    }
+
+    // Check auth on page load
+    checkAuthStatus();
+
+    document.getElementById('finderForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const code = document.getElementById('quickCode').value.trim().toUpperCase();
+      if (code) {
+        window.location.href = `/find/${code}`;
+      }
+    });
+  </script>
+</body>
+</html>

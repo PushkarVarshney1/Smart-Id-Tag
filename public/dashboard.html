@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Smart ID Tag</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <nav>
+    <div class="nav-container">
+      <a href="/" class="logo">
+        <span>🏷️</span>
+        Smart ID Tag
+      </a>
+      <div class="nav-links">
+        <span id="userName" style="margin-right: 10px;">Loading...</span>
+        <a href="/add-item">Add Item</a>
+        <button class="btn-logout" id="logoutBtn">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h1 style="margin-bottom: 30px;">My Dashboard</h1>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-number" id="totalItems">0</div>
+        <div class="stat-label">Total Items</div>
+      </div>
+      <div class="stat-card" style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);">
+        <div class="stat-number" id="activeItems">0</div>
+        <div class="stat-label">Active Items</div>
+      </div>
+      <div class="stat-card" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">
+        <div class="stat-number" id="totalMessages">0</div>
+        <div class="stat-label">New Messages</div>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2>My Items</h2>
+      <a href="/add-item" class="btn">+ Add New Item</a>
+    </div>
+
+    <div id="alertBox"></div>
+    <div id="itemsContainer">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Loading your items...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = null;
+
+    function showAlert(message, type = 'info') {
+      const alertBox = document.getElementById('alertBox');
+      alertBox.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+      setTimeout(() => {
+        alertBox.innerHTML = '';
+      }, 5000);
+    }
+
+    async function checkAuth() {
+      try {
+        const response = await fetch('/api/check-auth');
+        const data = await response.json();
+
+        if (!data.authenticated) {
+          // Only redirect if we're not already on login/register page
+          if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register')) {
+            window.location.href = '/login';
+          }
+          return false;
+        }
+
+        currentUser = data.user;
+        document.getElementById('userName').textContent = `Hello, ${data.user.name}`;
+        return true;
+      } catch (error) {
+        console.error('Auth check error:', error);
+        window.location.href = '/login';
+        return false;
+      }
+    }
+
+    async function loadItems() {
+      try {
+        const response = await fetch('/api/my-items');
+        const data = await response.json();
+
+        const container = document.getElementById('itemsContainer');
+
+        if (!data.items || data.items.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">📦</div>
+              <h3>No Items Yet</h3>
+              <p>Start by adding your first item to protect!</p>
+              <a href="/add-item" class="btn mt-2">Add Your First Item</a>
+            </div>
+          `;
+          return;
+        }
+
+        // Update stats
+        document.getElementById('totalItems').textContent = data.items.length;
+        document.getElementById('activeItems').textContent = 
+          data.items.filter(item => item.status === 'active').length;
+        document.getElementById('totalMessages').textContent = 
+          data.items.reduce((sum, item) => sum + item.messageCount, 0);
+
+        // Display items
+        container.innerHTML = data.items.map(item => `
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">${escapeHtml(item.itemName)}</h3>
+                <span class="status-badge status-${item.status}">${item.status.toUpperCase()}</span>
+              </div>
+              <div style="font-family: monospace; font-size: 1.2rem; font-weight: bold; color: var(--primary-color);">
+                ${item.uniqueCode}
+              </div>
+            </div>
+            
+            <div class="card-body">
+              <p>${escapeHtml(item.description) || 'No description provided'}</p>
+              ${item.messageCount > 0 ? 
+                `<p style="color: var(--warning-color); font-weight: bold; margin-top: 10px;">
+                  💬 ${item.messageCount} new message(s)
+                </p>` : ''}
+            </div>
+
+            <div class="card-footer">
+              <small style="color: var(--text-light);">
+                Created: ${new Date(item.createdAt).toLocaleDateString()}
+              </small>
+              <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <a href="/item/${item.id}" class="btn btn-small">View Details</a>
+                ${item.messageCount > 0 ? 
+                  `<a href="/chat/${item.id}" class="btn btn-small btn-secondary">View Messages</a>` : ''}
+                ${item.status === 'active' ? 
+                  `<button onclick="markReturned('${item.id}')" class="btn btn-small" style="background: var(--warning-color);">
+                    Mark as Returned
+                  </button>` : ''}
+              </div>
+            </div>
+          </div>
+        `).join('');
+
+      } catch (error) {
+        document.getElementById('itemsContainer').innerHTML = `
+          <div class="alert alert-error">Failed to load items. Please refresh the page.</div>
+        `;
+      }
+    }
+
+    async function markReturned(itemId) {
+      if (!confirm('Mark this item as returned? This will deactivate the code.')) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/mark-returned/${itemId}`, {
+          method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          showAlert('Item marked as returned!', 'success');
+          loadItems();
+        } else {
+          showAlert(data.error || 'Failed to update item', 'error');
+        }
+      } catch (error) {
+        showAlert('Network error', 'error');
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try {
+        await fetch('/api/logout', { method: 'POST' });
+        window.location.href = '/';
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    });
+
+    // Initialize
+    (async () => {
+      const authenticated = await checkAuth();
+      if (authenticated) {
+        loadItems();
+      }
+    })();
+  </script>
+</body>
+</html>

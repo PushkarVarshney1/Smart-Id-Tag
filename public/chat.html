@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Messages - Smart ID Tag</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <nav>
+    <div class="nav-container">
+      <a href="/" class="logo">
+        <span>🏷️</span>
+        Smart ID Tag
+      </a>
+      <div class="nav-links">
+        <a href="/dashboard">Dashboard</a>
+        <button class="btn-logout" id="logoutBtn">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="messages-container">
+      
+      <div style="margin-bottom: 30px;">
+        <a href="/dashboard" style="color: var(--primary-color); text-decoration: none;">
+          ← Back to Dashboard
+        </a>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 id="itemName" class="card-title">Loading...</h2>
+            <p id="itemCode" style="font-family: monospace; color: var(--text-light);"></p>
+          </div>
+          <div>
+            <span id="itemStatus" class="status-badge status-active"></span>
+          </div>
+        </div>
+      </div>
+
+      <div id="alertBox"></div>
+
+      <div id="messagesBox">
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Loading messages...</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 30px;">
+        <h3 style="margin-bottom: 20px;">Reply to Finder</h3>
+        <form id="replyForm">
+          <div class="form-group">
+            <textarea 
+              id="replyText" 
+              placeholder="Type your reply here... (e.g., Thank you! Let's meet at Central Park tomorrow at 3pm)"
+              rows="4"
+              required
+            ></textarea>
+          </div>
+          <button type="submit" class="btn btn-block" id="replyBtn">
+            Send Reply
+          </button>
+        </form>
+
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 5px; margin-top: 20px;">
+          <p style="margin: 0; font-size: 0.9rem; color: var(--text-light);">
+            <strong>💡 Tip:</strong> Your contact information remains private. 
+            Only share personal details (phone, address) when you're ready to arrange the return.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    let currentItemId = null;
+
+    function showAlert(message, type = 'info') {
+      const alertBox = document.getElementById('alertBox');
+      alertBox.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+      setTimeout(() => {
+        alertBox.innerHTML = '';
+      }, 5000);
+    }
+
+    async function checkAuth() {
+      try {
+        const response = await fetch('/api/check-auth');
+        const data = await response.json();
+        if (!data.authenticated) {
+          window.location.href = '/login';
+        }
+      } catch (error) {
+        window.location.href = '/login';
+      }
+    }
+
+    async function loadMessages() {
+      const pathParts = window.location.pathname.split('/');
+      currentItemId = pathParts[pathParts.length - 1];
+
+      try {
+        const response = await fetch(`/api/messages/${currentItemId}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          document.getElementById('messagesBox').innerHTML = `
+            <div class="alert alert-error">${data.error || 'Failed to load messages'}</div>
+          `;
+          return;
+        }
+
+        // Update header
+        document.getElementById('itemName').textContent = data.item.itemName;
+        document.getElementById('itemCode').textContent = data.item.code;
+        document.getElementById('itemStatus').textContent = data.item.status.toUpperCase();
+        document.getElementById('itemStatus').className = `status-badge status-${data.item.status}`;
+
+        // Display messages
+        const messagesBox = document.getElementById('messagesBox');
+
+        if (data.messages.length === 0) {
+          messagesBox.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">💬</div>
+              <p>No messages yet. Waiting for someone to find your item...</p>
+            </div>
+          `;
+          return;
+        }
+
+        messagesBox.innerHTML = data.messages.map(msg => {
+          const date = new Date(msg.time).toLocaleString();
+          const senderLabel = msg.senderType === 'finder' ? '🔍 Finder' : '👤 You';
+          
+          return `
+            <div class="message message-${msg.senderType}">
+              <div class="message-header">
+                <span class="message-sender">${senderLabel}</span>
+                <span>${date}</span>
+              </div>
+              <div class="message-text">${escapeHtml(msg.text)}</div>
+              ${msg.senderType === 'finder' && !msg.isAbuse ? `
+                <div style="margin-top: 10px;">
+                  <button onclick="reportAbuse('${msg.id}')" class="btn btn-small btn-danger">
+                    Report as Abuse
+                  </button>
+                </div>
+              ` : ''}
+              ${msg.isAbuse ? `
+                <div style="margin-top: 10px; color: var(--danger-color); font-size: 0.85rem;">
+                  ⚠️ Reported as abuse
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('');
+
+      } catch (error) {
+        document.getElementById('messagesBox').innerHTML = `
+          <div class="alert alert-error">Failed to load messages. Please refresh the page.</div>
+        `;
+      }
+    }
+
+    async function reportAbuse(messageId) {
+      if (!confirm('Report this message as abusive or spam?')) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/report-abuse/${messageId}`, {
+          method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          showAlert('Message reported. Thank you for helping keep our community safe.', 'success');
+          loadMessages(); // Reload to show updated status
+        } else {
+          showAlert(data.error || 'Failed to report message', 'error');
+        }
+      } catch (error) {
+        showAlert('Network error', 'error');
+      }
+    }
+
+    document.getElementById('replyForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const replyText = document.getElementById('replyText').value.trim();
+      const replyBtn = document.getElementById('replyBtn');
+
+      if (!replyText) {
+        showAlert('Please enter a reply', 'error');
+        return;
+      }
+
+      replyBtn.disabled = true;
+      replyBtn.textContent = 'Sending...';
+
+      try {
+        const response = await fetch(`/api/reply/${currentItemId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ message: replyText })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          showAlert('Reply sent successfully!', 'success');
+          document.getElementById('replyText').value = '';
+          loadMessages(); // Reload messages
+        } else {
+          showAlert(data.error || 'Failed to send reply', 'error');
+        }
+
+        replyBtn.disabled = false;
+        replyBtn.textContent = 'Send Reply';
+
+      } catch (error) {
+        showAlert('Network error. Please try again.', 'error');
+        replyBtn.disabled = false;
+        replyBtn.textContent = 'Send Reply';
+      }
+    });
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try {
+        await fetch('/api/logout', { method: 'POST' });
+        window.location.href = '/';
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    });
+
+    // Make reportAbuse available globally
+    window.reportAbuse = reportAbuse;
+
+    // Initialize
+    (async () => {
+      await checkAuth();
+      loadMessages();
+      
+      // Auto-refresh messages every 30 seconds
+      setInterval(loadMessages, 30000);
+    })();
+  </script>
+</body>
+</html>
